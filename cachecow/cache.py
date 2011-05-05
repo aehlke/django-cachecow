@@ -272,7 +272,7 @@ def _can_cache_response(response):
             or 'no-cache' in response.get('Cache-Control', '')
             or 'no-cache' in response.get('Pragma', ''))
 
-def cached_view(timeout=None, keys=None, namespace=None, add_user_key=False):
+def cached_view(timeout=None, keys=None, namespace=None, add_user_to_key=False):
     '''
     Use this instead of `cached_function` for caching views.  See 
     `cached_function` for documentation on how to use this.
@@ -284,7 +284,7 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_key=False):
     Doesn't cache responses which have "Cache-Control: no-cache" or 
     "Pragma: no-cache" in the headers.
 
-    If `add_user_key` is True, the key will be prefixed with the user's ID,
+    If `add_user_to_key` is True, the key will be prefixed with the user's ID,
     if logged in.
     '''
     def decorator(func):
@@ -308,7 +308,7 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_key=False):
                 _keys.append(translation.get_language())
 
             try:
-                if add_user_key and request.user.is_authenticated():
+                if add_user_to_key and request.user.is_authenticated():
                     _keys.append(request.user.id)
             except AttributeError: # maybe "auth" isn't installed.
                 pass
