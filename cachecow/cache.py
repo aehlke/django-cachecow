@@ -270,7 +270,7 @@ def _can_cache_response(response):
             or 'no-cache' in response.get('Cache-Control', '')
             or 'no-cache' in response.get('Pragma', ''))
 
-def cached_view(timeout=None, keys=None, namespace=None):
+def cached_view(timeout=None, keys=None, namespace=None, add_user_key=False):
     '''
     Use this instead of `cached_function` for caching views.  See 
     `cached_function` for documentation on how to use this.
@@ -281,6 +281,9 @@ def cached_view(timeout=None, keys=None, namespace=None):
     Only caches GET and HEAD requests which have an HTTP 200 response code.
     Doesn't cache responses which have "Cache-Control: no-cache" or 
     "Pragma: no-cache" in the headers.
+
+    If `add_user_key` is True, the key will be prefixed with the user's ID,
+    if logged in.
     '''
     def decorator(func):
         _set_delete_cache_member(func, keys=keys, namespace=namespace)
@@ -298,6 +301,12 @@ def cached_view(timeout=None, keys=None, namespace=None):
                 # Only add specific parts of the `request` object to the key.
                 _keys.extend(chain.from_iterable(request.GET.items()))
                 _keys.extend(request.method)
+
+            try:
+                if add_user_key and request.user.is_authenticated():
+                    _keys.append(request.user.id)
+            except AttributeError: # maybe "auth" isn't installed.
+                pass
             
             key = _make_key(_keys, namespace, func, args, kwargs)
 
