@@ -8,7 +8,6 @@ from cachecow.cache import (make_key, cached_function, _format_key_arg,
                             invalidate_namespace)
 from cachecow.intpacker import pack_int, unpack_int
 
-print 'test file'
 
 class CacheHelperTest(TestCase):
     def test_short_key(self):
@@ -100,13 +99,25 @@ class CacheHelperTest(TestCase):
         def my_func(bar):
             return bar * factor
 
+        @cached_function(namespace='foospace')
+        def my_other_func(bar):
+            return bar % factor
+
         ret = my_func(4)
+        ret2 = my_other_func(4)
         self.assertEqual(ret, 4 * factor)
+        self.assertEqual(ret2, 4 % factor)
+
+        # Haven't invalidated yet, so ret should still be the same.
+        old_factor, factor = factor, 3
+        ret = my_func(4)
+        self.assertEqual(ret, 4 * old_factor)
         
         invalidate_namespace('foospace')
-        factor = 3
+        factor = 4
         ret = my_func(4)
         self.assertEqual(ret, 4 * factor)
+        self.assertEqual(ret2, 4 % factor)
 
     def test_invalidating_nonexistent_namespace(self):
         invalidate_namespace('nonexistent_namespace')
