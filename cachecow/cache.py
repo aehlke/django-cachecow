@@ -1,5 +1,6 @@
 from datetime import timedelta
 from django.contrib import messages
+from django.contrib.sites.models import Site
 from django.core.cache import cache
 from django.http import HttpRequest
 from django.utils import translation
@@ -73,7 +74,7 @@ def make_key(*args):
 
     [2] http://code.sixapart.com/svn/memcached/trunk/server/doc/protocol.txt
     '''
-    key = '.'.join(map(_format_key_arg, args))
+    key = '.'.join(map(_format_key_arg, filter(lambda x: x is not None, args)))
 
     # If our key is too long, hash the part after the prefix,
     # and truncate as needed.
@@ -163,7 +164,7 @@ def _get_namespace_key(namespace):
         cache.set(namespace, ns_key)
 
     # Compact the key before returning it to save space when using it.
-    return pack_int(ns_key) # chop the 0x
+    return pack_int(ns_key)
 
 def invalidate_namespace(namespace):
     '''
@@ -171,6 +172,8 @@ def invalidate_namespace(namespace):
     deleted from the cache), this does nothing.
 
     This operation is atomic as long as the cache backend's `incr` is too.
+
+    It is an O(1) operation, independent of the number of keys in a namespace.
     '''
     try:
         cache.incr(namespace)
@@ -306,6 +309,9 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_to_key=False):
 
                 # Add the current language.
                 _keys.append(translation.get_language())
+
+                # Current site, if available.
+                _keys.append(getattr(settings, 'SITE_ID', None))
 
             try:
                 if add_user_to_key and request.user.is_authenticated():
