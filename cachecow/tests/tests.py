@@ -108,14 +108,14 @@ class CacheHelperTest(TestCase):
         self.assertEqual(ret, 4 * factor)
         self.assertEqual(ret2, 4 % factor)
 
-        # Haven't invalidated yet, so ret should still be the same.
+        # Haven't invalidated yet, so changing `factor` shouldn't matter.
         old_factor, factor = factor, 3
         ret = my_func(4)
         self.assertEqual(ret, 4 * old_factor)
         
         invalidate_namespace('foospace')
-        factor = 4
         ret = my_func(4)
+        ret2 = my_other_func(4)
         self.assertEqual(ret, 4 * factor)
         self.assertEqual(ret2, 4 % factor)
 
