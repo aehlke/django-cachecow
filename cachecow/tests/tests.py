@@ -111,6 +111,22 @@ class CacheHelperTest(TestCase):
     def test_invalidating_nonexistent_namespace(self):
         invalidate_namespace('nonexistent_namespace')
 
+    def test_namespace_funcs(self):
+        for ns_key in ('huh',
+                       ('my', 'namespace', 'names',),
+                       12345,):
+            def ns_func(foo):
+                return (foo, ns_key,)
+            val = 5
+            @cached_function(namespace=ns_func)
+            def my_nsed_func(foo):
+                return val + foo
+            self.assertEqual(my_nsed_func(1), val + 1)
+            old_val, val = val, 10
+            self.assertEqual(my_nsed_func(1), old_val + 1)
+            invalidate_namespace(ns_func(1))
+            self.assertEqual(my_nsed_func(1), val + 1)
+            
 
 
 class IntPackerTest(TestCase):

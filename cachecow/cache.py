@@ -166,6 +166,19 @@ def _get_namespace_key(namespace):
     # Compact the key before returning it to save space when using it.
     return pack_int(ns_key)
 
+def _process_namespace_name(namespace):
+    '''
+    A namespace can be any serializable object, not just a string. This 
+    serializes the namespace name by passing it to `make_key`.
+    '''
+    # Don't explode string values.
+    if isinstance(namespace, str):
+        namespace = (namespace,)
+    try:
+        return make_key(*namespace)
+    except TypeError:
+        return make_key(namespace)
+
 def invalidate_namespace(namespace):
     '''
     If the namespace is already invalid (i.e. the namespace key has been 
@@ -175,6 +188,7 @@ def invalidate_namespace(namespace):
 
     It is an O(1) operation, independent of the number of keys in a namespace.
     '''
+    namespace = _process_namespace_name(namespace)
     try:
         cache.incr(namespace)
     except ValueError:
@@ -186,21 +200,23 @@ def _make_key(keys, namespace, func, args, kwargs):
     if callable(namespace):
         namespace = namespace(*args, **kwargs)
     if namespace:
+        namespace = _process_namespace_name(namespace)
         keys += [_get_namespace_key(namespace)]
 
     key = make_key(*keys)
-    print key
     return key
 
 def _set_cache(key, val, timeout):
-    if timeout and timeout < 0:
-        raise Exception('Cache timeout value must not be negative.')
-
+    '''
+    Wrapper around cache.set to allow timedelta timeouts.
+    '''
     if isinstance(timeout, timedelta):
         timeout = _timedelta_to_seconds(timeout)
+    if timeout and timeout < 0:
+        raise Exception('Cache timeout value must not be negative.')
     cache.set(key, val, timeout=timeout)
 
-def _set_delete_cache_member(func, keys=None, namespace=None):
+def _add_delete_cache_member(func, keys=None, namespace=None):
     '''
     Adds an `delete_cache` member function to `func`. Pass it the same args
     as `func` so that it can find the right key to delete.
@@ -234,19 +250,23 @@ def cached_function(timeout=None, keys=None, namespace=None):
     keys. When `namespace` is used, all keys that belong to the given namespace
     can be invalidated simply by passing the namespace name to
     `invalidate_namespace`. This is especially helpful when you start worker 
-    processes that don't know what's already in the cache, since it relieves you
-    of needing to keep track of every key you set.
+    processes that don't know what's already in the cache, since it relieves 
+    you of needing to keep track of every key you set.
 
-    `namespace` can be either a string or a function that returns a string. If
-    a function, it will be called with the same arguments as the function that
-    `cached_function` is decorating. This lets you create namespaces 
-    dynamically.
+    `namespace` can be either a string (or anything serializable) or a
+    function. If a function, it will be called with the same arguments as the
+    function that `cached_function` is decorating. The return value will be
+    serialized using `make_key`, so you can return a string or an iterable of
+    things to be serialized. This lets you create namespaces dynamically 
+    depending on some of the arguments passed to whatever you're caching.
+    For example, you may want to cache several functions in the same namespace
+    depending on the current user.
     
     Note that the `namespace` function *must* be determinstic -- given the same
     input arguments, it must always produce the same output.
     '''
     def decorator(func):
-        _set_delete_cache_member(func, keys=keys, namespace=namespace)
+        _add_delete_cache_member(func, keys=keys, namespace=namespace)
 
         @wraps(func)
         def wrapped(*args, **kwargs):
@@ -291,7 +311,7 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_to_key=False):
     if logged in.
     '''
     def decorator(func):
-        _set_delete_cache_member(func, keys=keys, namespace=namespace)
+        _add_delete_cache_member(func, keys=keys, namespace=namespace)
 
         @wraps(func)
         def wrapped(request, *args, **kwargs):
