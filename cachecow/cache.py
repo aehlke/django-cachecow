@@ -2,6 +2,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.core.cache import cache
 from django.http import HttpRequest
+from django.utils import translation
 from functools import wraps
 from intpacker import pack_int
 from itertools import chain
@@ -10,6 +11,7 @@ import inspect
 import re
 import string
 import time
+
 
 # A memcached limit.
 MAX_KEY_LENGTH = 250
@@ -300,7 +302,10 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_key=False):
                 
                 # Only add specific parts of the `request` object to the key.
                 _keys.extend(chain.from_iterable(request.GET.items()))
-                _keys.extend(request.method)
+                _keys.append(request.method)
+
+                # Add the current language.
+                _keys.append(translation.get_language())
 
             try:
                 if add_user_key and request.user.is_authenticated():
