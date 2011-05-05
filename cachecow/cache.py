@@ -82,7 +82,7 @@ def make_key(*args):
         if len(prefix) >= MAX_KEY_LENGTH:
             raise Exception('Your cache key prefixes are too long.')
 
-        key = hashlib.sha512(key).hexdigest()[:MAX_KEY_LENGTH - len(prefix)]
+        key = hashlib.md5(key).hexdigest()[:MAX_KEY_LENGTH - len(prefix)]
     return key
 
 def _make_keys_from_function(func, *args, **kwargs):
