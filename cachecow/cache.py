@@ -176,7 +176,7 @@ def _process_namespace_name(namespace):
         namespace = (namespace,)
     try:
         namespace = make_key(*namespace)
-    except TypeError:
+    except TypeError: # It might not be an iterable.
         namespace = make_key(namespace)
     return 'namespace:' + namespace
 
@@ -203,10 +203,8 @@ def _make_key(keys, namespace, func, args, kwargs):
     if namespace:
         namespace = _process_namespace_name(namespace)
         keys.append(_get_namespace_key(namespace))
-    print 'namespace:', namespace
 
-    key = make_key(*keys)
-    return key
+    return make_key(*keys)
 
 def _set_cache(key, val, timeout):
     '''
