@@ -1,6 +1,6 @@
 from datetime import timedelta
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.sites.models import Site
 from django.core.cache import cache
 from django.http import HttpRequest
 from django.utils import translation
@@ -175,9 +175,10 @@ def _process_namespace_name(namespace):
     if isinstance(namespace, str):
         namespace = (namespace,)
     try:
-        return make_key(*namespace)
+        namespace = make_key(*namespace)
     except TypeError:
-        return make_key(namespace)
+        namespace = make_key(namespace)
+    return 'namespace:' + namespace
 
 def invalidate_namespace(namespace):
     '''
@@ -201,7 +202,8 @@ def _make_key(keys, namespace, func, args, kwargs):
         namespace = namespace(*args, **kwargs)
     if namespace:
         namespace = _process_namespace_name(namespace)
-        keys += [_get_namespace_key(namespace)]
+        keys.append(_get_namespace_key(namespace))
+    print 'namespace:', namespace
 
     key = make_key(*keys)
     return key
@@ -319,6 +321,8 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_to_key=False):
                 return func(request, *args, **kwargs)
             
             _keys = keys
+
+            # Default keys.
             if not _keys:
                 # Don't naively add the `request` arg to the cache key.
                 _keys = _make_keys_from_function(func, *args, **kwargs)
