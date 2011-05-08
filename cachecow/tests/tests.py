@@ -24,8 +24,7 @@ class CacheHelperTest(TestCase):
         args = range(2000)
         key = make_key(*args)
         self.assertTrue(len(key) <= 250)
-        self.assertTrue(
-                '1.2.3.4.5.6.7.8.9.10.11.12' not in key, 'key is not hashed')
+        self.assertTrue('1.2.3.4.5.6.7.8.9.10' not in key, 'key is not hashed')
 
     def test_function_decorator(self):
         foo = 10
@@ -38,12 +37,10 @@ class CacheHelperTest(TestCase):
         self.assertEqual(ret, foo)
 
         foo = 20
-        ret = my_func()
-        self.assertNotEqual(ret, foo)
+        self.assertNotEqual(my_func(), foo)
 
         my_func.delete_cache()
-        ret = my_func()
-        self.assertEqual(ret, foo)
+        self.assertEqual(my_func(), foo)
 
     def test_method_decorator(self):
         foo = 10
@@ -54,12 +51,23 @@ class CacheHelperTest(TestCase):
                 return foo
 
         bar = Baz()
-        ret = bar.my_func()
-        self.assertEqual(ret, foo)
-
+        self.assertEqual(bar.my_func(), foo)
         foo = 20
-        ret = bar.my_func()
-        self.assertNotEqual(ret, foo)
+        self.assertNotEqual(bar.my_func(), foo)
+
+    def test_property_decorator(self):
+        foo = 77
+        
+        class Quuuux(object):
+            @property
+            @cached_function()
+            def my_prop(self):
+                return foo
+
+        q = Quuuux()
+        self.assertEqual(q.my_prop, foo)
+        foo = 20
+        self.assertNotEqual(q.my_prop, foo)
 
     def test_key_arg_formatter(self):
         s = _format_key_arg({1:2})
