@@ -197,17 +197,15 @@ def invalidate_namespace(namespace):
         # The namespace is already invalid, since its key is gone.
         pass
 
-def _make_key(keys, namespace, func, args, kwargs):
+def _make_key(keys, namespace, func_args, func_kwargs):
     '''
     Returns the cache key to use for the decorated function. Calls and replaces 
     any callable items in `keys` with their return values before sending `keys`
     over to `make_key`. Does the same for a callable `namespace`.
     '''
-    keys = keys or _make_keys_from_function(func, *args, **kwargs)
-
     def call_if_callable(key_arg):
         if callable(key_arg):
-            return key_arg(*args, **kwargs)
+            return key_arg(*func_args, **func_kwargs)
         return key_arg
 
     keys = map(call_if_callable, keys)
@@ -221,7 +219,7 @@ def _make_key(keys, namespace, func, args, kwargs):
 
 def _set_cache(key, val, timeout):
     '''
-    Wrapper around cache.set to allow timedelta timeouts.
+    Wrapper around cache.set to allow timedelta timeouts for our decorators.
     '''
     if isinstance(timeout, timedelta):
         timeout = _timedelta_to_seconds(timeout)
@@ -238,7 +236,8 @@ def _add_delete_cache_member(func, keys=None, namespace=None):
     `keys` parameter specified, `delete_cache` takes no arguments.
     '''
     def delete_cache(*args, **kwargs):
-        key = _make_key(keys, namespace, func, args, kwargs)
+        _keys = keys or _make_keys_from_function(func, *args, **kwargs)
+        key = _make_key(_keys, namespace, args, kwargs)
         cache.delete(key)
     func.delete_cache = delete_cache
 
@@ -287,7 +286,8 @@ def cached_function(timeout=None, keys=None, namespace=None):
 
         @wraps(func)
         def wrapped(*args, **kwargs):
-            key = _make_key(keys, namespace, func, args, kwargs)
+            _keys = keys or _make_keys_from_function(func, *args, **kwargs)
+            key = _make_key(_keys, namespace, args, kwargs)
             val = cache.get(key)
 
             if val is None:
@@ -358,11 +358,12 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_to_key=False):
             except AttributeError: # maybe "auth" isn't installed.
                 pass
             
-            key = _make_key(_keys, namespace, func, args, kwargs)
+            # Add `request` to `args` since _make_key wants all func args in it.
+            key = _make_key(_keys, namespace, (request,) + args, kwargs)
 
             val = cache.get(key)
             if val is None:
-                val = func(request, *args, **kwargs)
+                val = func(request, request, *args, **kwargs)
                 
                 if _can_cache_response(val):
                     _set_cache(key, val, timeout)
