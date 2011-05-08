@@ -26,7 +26,7 @@ class CacheHelperTest(TestCase):
         self.assertTrue(len(key) <= 250)
         self.assertTrue('1.2.3.4.5.6.7.8.9.10' not in key, 'key is not hashed')
 
-    def test_function_decorator(self):
+    def test_function_decorator_and_cache_deletion(self):
         foo = 10
         
         @cached_function()
@@ -92,8 +92,7 @@ class CacheHelperTest(TestCase):
             def my_func(self):
                 return foo
 
-        b = Bar2().my_func()
-        self.assertNotEqual(a, b)
+        self.assertNotEqual(a, Bar2().my_func())
 
     def test_timedelta_to_s(self):
         t = timedelta(days=2)
@@ -150,16 +149,38 @@ class CacheHelperTest(TestCase):
         def ns_func(foo=None):
             self.assertTrue(foo is not None)
             return ['test_namespace_func_kwargs', foo]
-
         val = 6
-
         @cached_function(namespace=ns_func)
         def a_func(foo=None):
             return val + foo
-
         ret = a_func(foo=4)
         self.assertEqual(ret, 10)
 
+    def test_callable_keys(self):
+        thing = {'name': 'bob', 'age': 30}
+
+        # To make sure `thing_key` gets called.
+        self._test_func_keys_key_call_count = 0
+
+        def thing_key(p):
+            self._test_func_keys_key_call_count += 1
+            return p['name']
+
+        @cached_function(keys=['test_lambda_keys', thing_key])
+        def get_age(p):
+            return p['age']
+
+        self.assertEqual(get_age(thing), thing['age'])
+        thing['age'] += 1
+        self.assertNotEqual(get_age(thing), thing['age'])
+        thing['name'] = 'john' # Changes the cache key, so it will expire
+        self.assertEqual(get_age(thing), thing['age'])
+        self.assertTrue(self._test_func_keys_key_call_count)
+        
+
+
+#class CachedViewTest(TestCase):
+    
             
 
 

@@ -168,17 +168,18 @@ def _get_namespace_key(namespace):
 
 def _process_namespace_name(namespace):
     '''
-    A namespace can be any serializable object, not just a string. This 
-    serializes the namespace name by passing it to `make_key`.
+    A namespace can be any serializable object or list of objects, not just a
+    string. This serializes the namespace name by passing it to `make_key`.
     '''
-    # Don't explode string values.
+    # Don't explode strings.
     if isinstance(namespace, str):
-        namespace = (namespace,)
+        return make_key(namespace)
+
+    # First try as if it's an iterable.
     try:
-        namespace = make_key(*namespace)
+        return make_key(*namespace)
     except TypeError: # It might not be an iterable.
-        namespace = make_key(namespace)
-    return 'namespace:' + namespace
+        return make_key(namespace)
 
 def invalidate_namespace(namespace):
     '''
@@ -193,13 +194,25 @@ def invalidate_namespace(namespace):
     try:
         cache.incr(namespace)
     except ValueError:
+        # The namespace is already invalid, since its key is gone.
         pass
 
 def _make_key(keys, namespace, func, args, kwargs):
+    '''
+    Returns the cache key to use for the decorated function. Calls and replaces 
+    any callable items in `keys` with their return values before sending `keys`
+    over to `make_key`. Does the same for a callable `namespace`.
+    '''
     keys = keys or _make_keys_from_function(func, *args, **kwargs)
 
-    if callable(namespace):
-        namespace = namespace(*args, **kwargs)
+    def call_if_callable(key_arg):
+        if callable(key_arg):
+            return key_arg(*args, **kwargs)
+        return key_arg
+
+    keys = map(call_if_callable, keys)
+
+    namespace = call_if_callable(namespace)
     if namespace:
         namespace = _process_namespace_name(namespace)
         keys.append(_get_namespace_key(namespace))
@@ -245,6 +258,10 @@ def cached_function(timeout=None, keys=None, namespace=None):
     remove any illegal characters, then joined into one string to use as the
     key. If `keys` is None, we'll automatically create a determinatively and
     uniquely identifying key for the function which is hopefully human-readable.
+
+    Any key in `keys` can be callable, as well. These will be called with the 
+    same args and kwargs as the decorated function, and their return values 
+    will be serialized and added to the key.
 
     `namespace` is used as an alternative way to invalidate a key or a group of
     keys. When `namespace` is used, all keys that belong to the given namespace
