@@ -142,7 +142,7 @@ def _timedelta_to_seconds(t):
     try:
         return int(t.total_seconds())
     except AttributeError:
-        return int(t.microseconds + (t.seconds + t.days * 86400))
+        return int(t.microseconds + (t.seconds + t.days * 3600 * 24))
 
 def _make_namespace_key(namespace):
     '''
@@ -363,7 +363,7 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_to_key=False):
 
             val = cache.get(key)
             if val is None:
-                val = func(request, request, *args, **kwargs)
+                val = func(request, *args, **kwargs)
                 
                 if _can_cache_response(val):
                     _set_cache(key, val, timeout)

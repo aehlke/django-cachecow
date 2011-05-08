@@ -176,7 +176,7 @@ class CacheHelperTest(TestCase):
         thing['name'] = 'john' # Changes the cache key, so it will expire
         self.assertEqual(get_age(thing), thing['age'])
         self.assertTrue(self._test_func_keys_key_call_count)
-        
+
 
 
 #class CachedViewTest(TestCase):
