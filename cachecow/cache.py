@@ -346,7 +346,7 @@ def cached_view(timeout=None, keys=None, namespace=None, add_user_to_key=False):
                 _keys.extend(chain.from_iterable(request.GET.items()))
                 _keys.append(request.method)
 
-                # Add the current language.
+                # Current language.
                 _keys.append(translation.get_language())
 
                 # Current site, if available.
