@@ -52,7 +52,13 @@ def _format_key_arg(arg):
 
 def make_key(*args):
     '''
-    This does a couple things to cleanly make a key out of the given arguments:
+    Given a list of serializable objects, returns a string to be used as a key.
+
+    This function is used internally by CacheCow, but it's exposed in case you 
+    want to use it directly with the lower-level Django cache API, and so that 
+    you can see how keys are constructed.
+
+    This does a couple things to turn the given arguments into a clean key:
 
         1. Removes any control code characters and spaces [1] (which are
            illegal in memcached keys [2].)
@@ -288,8 +294,8 @@ def cached_function(timeout=None, keys=None, namespace=None):
         def wrapped(*args, **kwargs):
             _keys = keys or _make_keys_from_function(func, *args, **kwargs)
             key = _make_key(_keys, namespace, args, kwargs)
-            val = cache.get(key)
 
+            val = cache.get(key)
             if val is None:
                 val = func(*args, **kwargs)
                 _set_cache(key, val, timeout)
