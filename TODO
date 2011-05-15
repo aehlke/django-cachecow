@@ -1,0 +1,4 @@
+Add full support for cached properties. This is problematic since we obviously 
+can't add a method ("delete_cache") to a property. Needs a different design to
+handle this.
+

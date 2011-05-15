@@ -3,26 +3,27 @@
 from django.conf import settings
 from django.test import TestCase
 from datetime import timedelta
+from itertools import chain
 from cachecow.cache import (make_key, cached_function, _format_key_arg,
-                            _make_keys_from_function, _timedelta_to_seconds,
-                            invalidate_namespace)
+                            _make_key_args_from_function, _timedelta_to_seconds,
+                            invalidate_namespace, _key_arg_iterator)
 from cachecow.intpacker import pack_int, unpack_int
 
 
 class CacheHelperTest(TestCase):
     def test_short_key(self):
         args = ['foo', 'bar', 'b1z', 'qu ux']
-        key = make_key(*args)
+        key = make_key(args)
         for arg in args:
             self.assertTrue(arg.replace(' ', '') in key)
 
     def test_no_brackets_in_list_key(self):
-        key = make_key(1,2,3,4)
-        self.assertTrue('[' not in key)
+        key = make_key([1,2,3,4])
+        self.assertTrue('[' not in key and ']' not in key)
 
     def test_long_key(self):
         args = range(2000)
-        key = make_key(*args)
+        key = make_key(args)
         self.assertTrue(len(key) <= 250)
         self.assertTrue('1.2.3.4.5.6.7.8.9.10' not in key, 'key is not hashed')
 
@@ -33,8 +34,7 @@ class CacheHelperTest(TestCase):
         def my_func():
             return foo
 
-        ret = my_func()
-        self.assertEqual(ret, foo)
+        self.assertEqual(my_func(), foo)
 
         foo = 20
         self.assertNotEqual(my_func(), foo)
@@ -133,15 +133,20 @@ class CacheHelperTest(TestCase):
         for ns_key in ('huh',
                        ('my', 'namespace', 'names',),
                        12345,):
+
             def ns_func(foo):
                 return (foo, ns_key,)
+
             val = 5
+
             @cached_function(namespace=ns_func)
             def my_nsed_func(foo):
                 return val + foo
+
             self.assertEqual(my_nsed_func(1), val + 1)
             old_val, val = val, 10
             self.assertEqual(my_nsed_func(1), old_val + 1)
+
             invalidate_namespace(ns_func(1))
             self.assertEqual(my_nsed_func(1), val + 1)
 
@@ -156,26 +161,45 @@ class CacheHelperTest(TestCase):
         ret = a_func(foo=4)
         self.assertEqual(ret, 10)
 
-    def test_callable_keys(self):
-        thing = {'name': 'bob', 'age': 30}
+    def test_static_key(self):
+        foo = 10
+        @cached_function(key='foo')
+        def my_func():
+            return foo
 
-        # To make sure `thing_key` gets called.
+        self.assertEqual(my_func(), foo)
+        foo = 20
+        self.assertNotEqual(my_func(), foo)
+        my_func.delete_cache()
+        self.assertEqual(my_func(), foo)
+
+    def test_callable_keys(self):
+        # To make sure `person_key` gets called.
         self._test_func_keys_key_call_count = 0
 
-        def thing_key(p):
+        def person_key(p):
             self._test_func_keys_key_call_count += 1
             return p['name']
 
-        @cached_function(keys=['test_lambda_keys', thing_key])
-        def get_age(p):
-            return p['age']
+        for key in [['test_lambda_keys', person_key], person_key]:
+            person = {'name': 'bob', 'age': 30}
 
-        self.assertEqual(get_age(thing), thing['age'])
-        thing['age'] += 1
-        self.assertNotEqual(get_age(thing), thing['age'])
-        thing['name'] = 'john' # Changes the cache key, so it will expire
-        self.assertEqual(get_age(thing), thing['age'])
-        self.assertTrue(self._test_func_keys_key_call_count)
+            @cached_function(key=key)
+            def get_age(p):
+                return p['age']
+
+            self.assertEqual(get_age(person), person['age'])
+            person['age'] += 1
+            self.assertNotEqual(get_age(person), person['age'])
+            person['name'] = 'john' # Changes the cache key, so it will expire
+            self.assertEqual(get_age(person), person['age'])
+            self.assertTrue(self._test_func_keys_key_call_count)
+
+    def test_key_arg_iterator(self):
+        args = ['a', 'b', 1, 2, [3, 4], [5, [6, 7]]]
+        flat_args = ['a', 'b', 1, 2, 3, 4, 5, [6, 7]] # Only flattened one level
+        iterated_args = list(_key_arg_iterator(args, max_depth=1))
+        self.assertEqual(iterated_args, flat_args)
 
 
 
