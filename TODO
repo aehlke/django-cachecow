@@ -1,4 +1,8 @@
-Add full support for cached properties. This is problematic since we obviously 
-can't add a method ("delete_cache") to a property. Needs a different design to
-handle this.
+* Add full support for cached properties. This is problematic since we 
+obviously can't add a method ("delete_cache") to a property. Needs a 
+different design to handle this. Currently the only way to delete a cached 
+property is to use a namespace.
+
+* Add namespaced low-level get/set/etc. functions, so we can use the 
+namespacing features of CacheCow without the decorators.
 
