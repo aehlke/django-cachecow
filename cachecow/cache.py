@@ -64,7 +64,7 @@ def _format_key_arg(arg):
     if arg is None:
         return ''
     elif isinstance(arg, dict):
-        # `str` is wasteful for dicts, for our case here.
+        # `str` is wasteful for dicts for our purposes here, so let's compact.
         s = ','.join([to_string(key) + ':' + to_string(val)
                       for key,val in arg.items()])
     else:
@@ -166,21 +166,14 @@ def _make_key_args_from_function(func, *args, **kwargs):
     key_args.append(pack_int(func.__code__.__hash__()))
     return key_args
 
-def _timedelta_to_seconds(t):
-    '''
-    Returns an int.
-
-    Tries to use Python 2.7's timedelta#total_seconds, if available.
-    '''
-    try:
-        return int(t.total_seconds())
-    except AttributeError:
-        return int(t.microseconds + (t.seconds + t.days * 3600 * 24))
-
-def _make_namespace_key(namespace):
+def _make_namespace_prefix():
     '''
     Returns a likely-to-be-unique value that can be incremented with 
-    `cache.incr`.
+    `cache.incr`, so that namespace invalidation can be atomic. It only needs
+    to be unique within the given namespace, and the only risk of collision 
+    would be from a *deleted* namespace key, which should only happen because 
+    memcached etc. ejected it for being too old. So there's little risk to 
+    using the current time as the value.
     '''
     # Use (an overly-cautious) time-since-epoch modulo decade, in nanoseconds.
     # It doesn't save many characters to be less cautious, so it's fine.
@@ -194,7 +187,7 @@ def _get_namespace_prefix(namespace):
     '''
     ns_key = cache.get(namespace)
     if not ns_key:
-        ns_key = _make_namespace_key(namespace)
+        ns_key = _make_namespace_prefix()
         cache.set(namespace, ns_key)
 
     # Compact the key before returning it to save space when using it.
@@ -234,6 +227,17 @@ def _make_key(key_args, namespace, func_args, func_kwargs):
         key_args.append(_get_namespace_prefix(make_key(namespace)))
 
     return make_key(key_args)
+
+def _timedelta_to_seconds(t):
+    '''
+    Returns an int.
+
+    Tries to use Python 2.7's timedelta#total_seconds, if available.
+    '''
+    try:
+        return int(t.total_seconds())
+    except AttributeError:
+        return int(t.microseconds + (t.seconds + t.days * 3600 * 24))
 
 def _set_cache(key, val, timeout):
     '''
