@@ -12,6 +12,10 @@ import inspect
 import re
 import string
 import time
+import logging
+
+# Get an instance of a logger
+logger = logging.getLogger(__name__)
 
 
 # A memcached limit.
@@ -43,7 +47,7 @@ def _key_arg_iterator(key_args, max_depth=1):
     deep, if they contain nested iterables.
     '''
     # Try traversing deeper into the input, unless it's a string.
-    if max_depth >= 0 and not isinstance(key_args, str):
+    if max_depth >= 0 and not isinstance(key_args, basestring):
         try:
             for x in key_args:
                 for y in _key_arg_iterator(x, max_depth=max_depth - 1):
@@ -203,6 +207,10 @@ def invalidate_namespace(namespace):
     It is an O(1) operation, independent of the number of keys in a namespace.
     '''
     namespace = make_key(namespace)
+
+    logger.debug('invalidating namespace: {0}'.format(namespace))
+    logger.debug('namespace value was: {0}'.format(cache.get(namespace)))
+
     try:
         cache.incr(namespace)
     except ValueError:
@@ -226,6 +234,8 @@ def _make_key(key_args, namespace, func_args, func_kwargs):
     if namespace:
         key_args.append(_get_namespace_prefix(make_key(namespace)))
 
+    logger.debug(u'_make_key passed namespace: {0}'.format(namespace))
+    logger.debug(u'_make_key returning: {0}'.format(make_key(key_args)))
     return make_key(key_args)
 
 def _timedelta_to_seconds(t):
@@ -247,6 +257,8 @@ def _set_cache(key, val, timeout):
         timeout = _timedelta_to_seconds(timeout)
     if timeout and timeout < 0:
         raise Exception('Cache timeout value must not be negative.')
+
+    logger.debug(u'setting cache: {0} = {1}'.format(key,val))
     cache.set(key, val, timeout=timeout)
 
 def _add_delete_cache_member(func, key=None, namespace=None):

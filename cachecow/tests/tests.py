@@ -17,6 +17,12 @@ class CacheHelperTest(TestCase):
         for arg in args:
             self.assertTrue(arg.replace(' ', '') in key)
 
+    def test_unicode_obj_key(self):
+        args = [u'foo', 'bar', u'baz']
+        key = make_key(args)
+        for arg in args:
+            self.assertTrue(arg in key)
+
     def test_no_brackets_in_list_key(self):
         key = make_key([1,2,3,4])
         self.assertTrue('[' not in key and ']' not in key)
