@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
-from django.conf import settings
-from django.test import TestCase
 from datetime import timedelta
 from itertools import chain
-from cachecow.cache import (make_key, cached_function, _format_key_arg,
-                            _make_key_args_from_function, _timedelta_to_seconds,
-                            invalidate_namespace, _key_arg_iterator)
+
+from django.conf import settings
+from django.test import TestCase
+
+from cachecow.cache import (make_key, _format_key_arg, timedelta_to_seconds,
+                            invalidate_namespace, key_arg_iterator)
+from cachecow.decorators import cached_function
 from cachecow.intpacker import pack_int, unpack_int
 
 
@@ -102,7 +104,7 @@ class CacheHelperTest(TestCase):
 
     def test_timedelta_to_s(self):
         t = timedelta(days=2)
-        s = _timedelta_to_seconds(t)
+        s = timedelta_to_seconds(t)
         self.assertEqual(s, 3600*48)
 
     def test_simple_namespaced_key(self):
@@ -204,7 +206,7 @@ class CacheHelperTest(TestCase):
     def test_key_arg_iterator(self):
         args = ['a', 'b', 1, 2, [3, 4], [5, [6, 7]]]
         flat_args = ['a', 'b', 1, 2, 3, 4, 5, [6, 7]] # Only flattened one level
-        iterated_args = list(_key_arg_iterator(args, max_depth=1))
+        iterated_args = list(key_arg_iterator(args, max_depth=1))
         self.assertEqual(iterated_args, flat_args)
 
 

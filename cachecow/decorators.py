@@ -12,6 +12,28 @@ from cachecow.cache import set_cache
 from cachecow.intpacker import pack_int
 
 
+def _make_key_for_func(key_args, namespace, func_args, func_kwargs):
+    '''
+    Returns the cache key to use for the decorated function. Calls and replaces 
+    any callable items in `key_args` with their return values before sending 
+    `key_args` over to `make_key`. Does the same for a callable `namespace`.
+    '''
+    def call_if_callable(obj):
+        if callable(obj):
+            return obj(*func_args, **func_kwargs)
+        return obj
+
+    key_args = map(call_if_callable, key_arg_iterator(key_args))
+
+    namespace = call_if_callable(namespace)
+    if namespace:
+        key_args.append(_get_namespace_prefix(make_key(namespace)))
+
+    logger.debug(u'_make_key_for_func passed namespace: {0}'.format(namespace))
+    logger.debug(u'_make_key_for_func returning: {0}'.format(make_key(key_args)))
+    return make_key(key_args)
+
+
 def _add_delete_cache_member(func, key=None, namespace=None):
     '''
     Adds a `delete_cache` member function to `func`. Pass it the same args
@@ -22,7 +44,7 @@ def _add_delete_cache_member(func, key=None, namespace=None):
     '''
     def delete_cache(*args, **kwargs):
         key_args = key or _make_key_args_from_function(func, *args, **kwargs)
-        _key = _make_key(key_args, namespace, args, kwargs)
+        _key = _make_key_for_func(key_args, namespace, args, kwargs)
         cache.delete(_key)
     func.delete_cache = delete_cache
 
@@ -122,7 +144,7 @@ def cached_function(timeout=None, key=None, namespace=None):
         def wrapped(*args, **kwargs):
             key_args = (key
                         or _make_key_args_from_function(func, *args, **kwargs))
-            _key = _make_key(key_args, namespace, args, kwargs)
+            _key = _make_key_for_func(key_args, namespace, args, kwargs)
 
             val = cache.get(_key)
             if val is None:
@@ -198,7 +220,7 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False):
 
             # Serialize the key.
             # Add `request` to `args` since _make_key wants all func args in it.
-            _key = _make_key(key_args, namespace, (request,) + args, kwargs)
+            _key = _make_key_for_func(key_args, namespace, (request,) + args, kwargs)
 
             val = cache.get(_key)
             if val is None:

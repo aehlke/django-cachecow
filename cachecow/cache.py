@@ -32,7 +32,7 @@ _CONTROL_CODE_CHARS = ''.join(chr(i) for i in chain(xrange(0x20 + 1),
 _ALL_CHARS = string.maketrans('', '')
 
 
-def _key_arg_iterator(key_args, max_depth=1):
+def key_arg_iterator(key_args, max_depth=1):
     '''
     Yields items from key arguments as we allow them in `cached_function` et al.
 
@@ -45,7 +45,7 @@ def _key_arg_iterator(key_args, max_depth=1):
     if max_depth >= 0 and not isinstance(key_args, basestring):
         try:
             for x in key_args:
-                for y in _key_arg_iterator(x, max_depth=max_depth - 1):
+                for y in key_arg_iterator(x, max_depth=max_depth - 1):
                     yield y
         except TypeError: # It's not an iterable, so forget recursing.
             yield key_args
@@ -106,7 +106,7 @@ def make_key(obj):
 
     [2] http://code.sixapart.com/svn/memcached/trunk/server/doc/protocol.txt
     '''
-    key = '.'.join(imap(_format_key_arg, _key_arg_iterator(obj)))
+    key = '.'.join(imap(_format_key_arg, key_arg_iterator(obj)))
 
     # If the resulting key is too long, hash the part after the prefix, and
     # truncate as needed.
@@ -122,7 +122,6 @@ def make_key(obj):
         # just for being 1 char too long. This would improve readability.
         key = hashlib.md5(key).hexdigest()[:MAX_KEY_LENGTH - len(prefix)]
     return key
-
 
 
 def _make_namespace_prefix():
@@ -173,28 +172,6 @@ def invalidate_namespace(namespace):
     except ValueError:
         # The namespace is already invalid, since its key is gone.
         pass
-
-
-def _make_key(key_args, namespace, func_args, func_kwargs):
-    '''
-    Returns the cache key to use for the decorated function. Calls and replaces 
-    any callable items in `key_args` with their return values before sending 
-    `key_args` over to `make_key`. Does the same for a callable `namespace`.
-    '''
-    def call_if_callable(obj):
-        if callable(obj):
-            return obj(*func_args, **func_kwargs)
-        return obj
-
-    key_args = map(call_if_callable, _key_arg_iterator(key_args))
-
-    namespace = call_if_callable(namespace)
-    if namespace:
-        key_args.append(_get_namespace_prefix(make_key(namespace)))
-
-    logger.debug(u'_make_key passed namespace: {0}'.format(namespace))
-    logger.debug(u'_make_key returning: {0}'.format(make_key(key_args)))
-    return make_key(key_args)
 
 
 def timedelta_to_seconds(t):
