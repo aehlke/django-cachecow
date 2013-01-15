@@ -74,7 +74,7 @@ def _format_key_arg(arg):
     return s.translate(_ALL_CHARS, _CONTROL_CODE_CHARS)
 
 
-def make_key(obj):
+def make_key(obj, namespace=None):
     '''
     Returns a string serialization of `obj` which is usable as a cache key.
 
@@ -108,10 +108,23 @@ def make_key(obj):
     '''
     key = '.'.join(imap(_format_key_arg, key_arg_iterator(obj)))
 
+    if namespace is not None:
+        namespace = make_key(namespace)
+        key = '{}:{}'.format(_get_namespace_prefix(namespace), key)
+
+    try:
+        django_key = cache.make_key(key)
+    except AttributeError:
+        django_key = key
+
     # If the resulting key is too long, hash the part after the prefix, and
     # truncate as needed.
-    if len(cache.make_key(key)) > MAX_KEY_LENGTH:
-        prefix = cache.make_key('') # Django prepends some stuff to keys.
+    if len(key) > MAX_KEY_LENGTH:
+        try:
+            # Django 1.3+ prepends some stuff to keys.
+            prefix = cache.make_key('')
+        except AttributeError:
+            prefix = ''
         
         # Just to be safe... we should be able to have a key >= 1 char long :)
         if len(prefix) >= MAX_KEY_LENGTH:
@@ -126,13 +139,14 @@ def make_key(obj):
 
 def _make_namespace_prefix():
     '''
-    Returns a likely-to-be-unique value that can be incremented with 
-    `cache.incr`, so that namespace invalidation can be atomic. It only needs
-    to be unique within the given namespace, and the only risk of collision 
-    would be from a *deleted* namespace key, which should only happen because 
-    memcached etc. ejected it for being too old. So there's little risk to 
-    using the current time as the value.
+    Returns a likely-to-be-unique value that can be incremented with
+    `cache.incr`, so that namespace invalidation can be atomic.
     '''
+    # It only needs to be unique within the given namespace, and the only risk
+    # of collision would be from a *deleted* namespace key, which should only
+    # happen because memcached etc. ejected it for being too old. So there's
+    # little risk to using the current time as the value.
+    #
     # Use (an overly-cautious) time-since-epoch modulo decade, in nanoseconds.
     # It doesn't save many characters to be less cautious, so it's fine.
     decade_s = 3600 * 24 * 365 * 10 # decade in seconds.
@@ -144,6 +158,7 @@ def _get_namespace_prefix(namespace):
     Gets (or sets if uninitialized) the key prefix for the given namespace 
     string. The return value will prepend any keys that belong to the namespace.
     '''
+    namespace = make_key(namespace)
     ns_key = cache.get(namespace)
     if not ns_key:
         ns_key = _make_namespace_prefix()
@@ -165,7 +180,7 @@ def invalidate_namespace(namespace):
     namespace = make_key(namespace)
 
     logger.debug('invalidating namespace: {0}'.format(namespace))
-    logger.debug('namespace value was: {0}'.format(cache.get(namespace)))
+    #logger.debug('namespace value was: {0}'.format(cache.get(namespace)))
 
     try:
         cache.incr(namespace)
@@ -186,9 +201,13 @@ def timedelta_to_seconds(t):
         return int(t.microseconds + (t.seconds + t.days * 3600 * 24))
 
 
-def set_cache(key, val, timeout):
+def set_cache(key, val, timeout=None, namespace=None, **kwargs):
     '''
-    Wrapper around cache.set to allow either int or timedelta timeouts.
+    Wrapper around cache.set to allow either int or timedelta timeouts,
+    and optional namespace support.
+
+    Passes `kwargs` on to `cache.set` for Django 1.3+'s optional `version`
+    parameter.
     '''
     try:
         timeout = timedelta_to_seconds(timeout)
@@ -199,5 +218,5 @@ def set_cache(key, val, timeout):
         raise Exception('Cache timeout value must not be negative.')
 
     logger.debug(u'setting cache: {0} = {1}'.format(key,val))
-    cache.set(key, val, timeout=timeout)
+    cache.set(key, val, timeout=timeout, **kwargs)
 

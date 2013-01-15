@@ -156,7 +156,8 @@ class CacheHelperTest(TestCase):
             self.assertEqual(my_nsed_func(1), old_val + 1)
 
             invalidate_namespace(ns_func(1))
-            self.assertEqual(my_nsed_func(1), val + 1)
+            new_val_from_func = my_nsed_func(1)
+            self.assertEqual(new_val_from_func, val + 1)
 
     def test_namespace_func_kwargs(self):
         def ns_func(foo=None):
