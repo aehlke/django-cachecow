@@ -197,19 +197,26 @@ def _make_key(key_args, namespace, func_args, func_kwargs):
     return make_key(key_args)
 
 
+def timedelta_to_seconds(t):
+    '''
+    Returns an int.
+
+    Tries to use Python 2.7's timedelta#total_seconds, if available.
+    '''
+    try:
+        return int(t.total_seconds())
+    except AttributeError:
+        return int(t.microseconds + (t.seconds + t.days * 3600 * 24))
+
+
 def set_cache(key, val, timeout):
     '''
     Wrapper around cache.set to allow either int or timedelta timeouts.
     '''
     try:
-        # Python 2.7 only.
-        timeout = int(timeout.total_seconds())
+        timeout = timedelta_to_seconds(timeout)
     except AttributeError:
-        try:
-            timeout = int(timeout.microseconds
-                        + (timeout.seconds + timeout.days * 3600 * 24))
-        except AttributeError:
-            pass
+        pass
 
     if timeout and timeout < 0:
         raise Exception('Cache timeout value must not be negative.')
