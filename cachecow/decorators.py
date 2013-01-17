@@ -174,7 +174,9 @@ def _can_cache_response(response):
             or 'no-cache' in response.get('Pragma', ''))
 
 
-def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False):
+def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
+                request_gatekeeper=_can_cache_request,
+                respone_gatekeeper=_can_cache_response):
     '''
     Use this instead of `cached_function` for caching views.  See 
     `cached_function` for documentation on how to use this.
@@ -194,7 +196,7 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False):
 
         @wraps(func)
         def wrapped(request, *args, **kwargs):
-            if not _can_cache_request(request):
+            if not request_gatekeeper(request):
                 return func(request, *args, **kwargs)
 
             key_args = key
@@ -229,7 +231,7 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False):
             if val is None:
                 val = func(request, *args, **kwargs)
 
-                if _can_cache_response(val):
+                if response_gatekeeper(val):
                     set_cache(_key, val, timeout)
             return val
         return wrapped
