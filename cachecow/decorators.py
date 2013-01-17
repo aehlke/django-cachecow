@@ -35,7 +35,7 @@ def _make_key_for_func(key_args, func_args, func_kwargs, namespace=None):
     return make_key(key_args, namespace=namespace)
 
 
-def _add_delete_cache_member(func, key=None, namespace=None):
+def _add_delete_cache_member(func, key=None, namespace=None, add_user_to_key=False):
     '''
     Adds a `delete_cache` member function to `func`. Pass it the same args
     as `func` so that it can find the right key to delete.
@@ -45,8 +45,14 @@ def _add_delete_cache_member(func, key=None, namespace=None):
     '''
     def delete_cache(*args, **kwargs):
         key_args = key or _make_key_args_from_function(func, *args, **kwargs)
+
+        if add_user_to_key and kwargs.get('user') is not None:
+            # We can assume that key is specified (see cached_view's docstring).
+            key_args = chain(key_arg_iterator(key_args, max_depth=0), kwargs['user'])
+
         _key = _make_key_for_func(key_args, args, kwargs, namespace=namespace)
         cache.delete(_key)
+
     func.delete_cache = delete_cache
 
 
@@ -168,7 +174,6 @@ def _can_cache_request(request):
 
 
 def _can_cache_response(response):
-    # Only set the cache if the HTTP response code is 200.
     return (response.status_code != 200
             or 'no-cache' in response.get('Cache-Control', '')
             or 'no-cache' in response.get('Pragma', ''))
@@ -176,7 +181,7 @@ def _can_cache_response(response):
 
 def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
                 request_gatekeeper=_can_cache_request,
-                respone_gatekeeper=_can_cache_response):
+                response_gatekeeper=_can_cache_response):
     '''
     Use this instead of `cached_function` for caching views.  See 
     `cached_function` for documentation on how to use this.
@@ -188,11 +193,16 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
     Doesn't cache responses which have "Cache-Control: no-cache" or 
     "Pragma: no-cache" in the headers.
 
-    If `add_user_to_key` is True, the key will be prefixed with the user's ID,
-    if logged in.
+    If `add_user_to_key` is True, the key will be prefixed with the logged-in
+    user's ID when logged in. Currently this can only be used if `key` is also
+    specified, in order to avoid conflicts with function kwargs.
     '''
+    if add_user_to_key and key is None:
+        raise ValueError("Cannot use add_user_to_key without also specifing key.")
+
     def decorator(func):
-        _add_delete_cache_member(func, key=key, namespace=namespace)
+        _add_delete_cache_member(func, key=key, namespace=namespace,
+                                 add_user_to_key=add_user_to_key)
 
         @wraps(func)
         def wrapped(request, *args, **kwargs):
@@ -216,11 +226,8 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
                 # Current site, if available.
                 key_args.append(getattr(settings, 'SITE_ID', None))
 
-            try:
-                if add_user_to_key and request.user.is_authenticated():
-                    key_args.append(request.user.id)
-            except AttributeError: # maybe "auth" isn't installed.
-                pass
+            if add_user_to_key and request.user.is_authenticated():
+                key_args = chain(key_arg_iterator(key_args, max_depth=0), [request.user.id])
 
             # Serialize the key.
             # Add `request` to `args` since _make_key wants all func args in it.
