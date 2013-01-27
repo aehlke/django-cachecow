@@ -48,9 +48,10 @@ def _add_delete_cache_member(func, key=None, namespace=None, add_user_to_key=Fal
 
         if add_user_to_key and kwargs.get('user') is not None:
             # We can assume that key is specified (see cached_view's docstring).
-            key_args = chain(key_arg_iterator(key_args, max_depth=0), kwargs['user'])
+            key_args = chain(key_arg_iterator(key_args, max_depth=0), [kwargs['user']])
 
         _key = _make_key_for_func(key_args, args, kwargs, namespace=namespace)
+        logger.debug(u'deleting cache for key: {}'.format(_key))
         cache.delete(_key)
 
     func.delete_cache = delete_cache
@@ -239,7 +240,6 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
 
             resp = None
             val = cache.get(_key)
-            logger.debug(_key.__class__)
             logger.debug(u'getting cache from {}: {}'.format(_key, val))
 
             if val is None:
