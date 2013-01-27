@@ -118,7 +118,7 @@ def make_key(obj, namespace=None):
     # otherwise CACHE_KEY_PREFIX.
     if (not hasattr(cache, 'key_prefix')
             and getattr(settings, 'CACHE_KEY_PREFIX', None)):
-        key = '{}:{}'.format(settings.KEY_PREFIX, key)
+        key = '{}:{}'.format(settings.CACHE_KEY_PREFIX, key)
 
     try:
         django_key = cache.make_key(key)
