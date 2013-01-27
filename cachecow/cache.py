@@ -217,6 +217,8 @@ def set_cache(key, val, timeout=None, namespace=None, **kwargs):
     if timeout and timeout < 0:
         raise Exception('Cache timeout value must not be negative.')
 
-    logger.debug(u'setting cache: {0} = {1}'.format(key,val))
+    logger.debug(u'setting cache: {} = {} ({}, timeout={})'.format(
+        key, val, val.__class__, timeout))
+
     cache.set(key, val, timeout=timeout, **kwargs)
 

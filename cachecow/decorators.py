@@ -6,7 +6,7 @@ import logging
 from django.conf import settings
 from django.contrib import messages
 from django.core.cache import cache
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
 from django.utils import translation
 
 from cachecow.cache import set_cache, make_key, key_arg_iterator
@@ -155,6 +155,7 @@ def cached_function(timeout=None, key=None, namespace=None):
                                       namespace=namespace)
 
             val = cache.get(_key)
+            logger.debug(u'getting cache from {}: {}'.format(_key, val))
             if val is None:
                 val = func(*args, **kwargs)
                 set_cache(_key, val, timeout)
@@ -170,7 +171,7 @@ def _can_cache_request(request):
     '''
     if len(messages.get_messages(request)) != 0:
         return False
-    return request.method in ['GET', 'HEAD']
+    return request.method == 'GET'
 
 
 def _can_cache_response(response):
@@ -181,7 +182,9 @@ def _can_cache_response(response):
 
 def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
                 request_gatekeeper=_can_cache_request,
-                response_gatekeeper=_can_cache_response):
+                response_gatekeeper=_can_cache_response,
+                cached_response_wrapper=HttpResponse,
+                serializer=lambda response: response.content):
     '''
     Use this instead of `cached_function` for caching views.  See 
     `cached_function` for documentation on how to use this.
@@ -234,13 +237,20 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
             _key = _make_key_for_func(key_args, (request,) + args, kwargs,
                                       namespace=namespace)
 
+            resp = None
             val = cache.get(_key)
-            if val is None:
-                val = func(request, *args, **kwargs)
+            logger.debug(_key.__class__)
+            logger.debug(u'getting cache from {}: {}'.format(_key, val))
 
-                if response_gatekeeper(val):
-                    set_cache(_key, val, timeout)
-            return val
+            if val is None:
+                resp = func(request, *args, **kwargs)
+
+                if response_gatekeeper(resp):
+                    set_cache(_key, serializer(resp), timeout)
+            else:
+                resp = cached_response_wrapper(val)
+
+            return resp
         return wrapped
     return decorator
 
