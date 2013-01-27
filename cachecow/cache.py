@@ -113,8 +113,9 @@ def make_key(obj, namespace=None):
         namespace = make_key(namespace)
         key = '{}:{}'.format(_get_namespace_prefix(namespace), key)
 
-    # Backwards-compatibility for Django < 1.3.
-    if not hasattr(cache, 'key_prefix') and getattr(settings, 'KEY_PREFIX', None):
+    # Use cache.key_prefix if available (Django>=1.3), otherwise CACHE_KEY_PREFIX.
+    if (not hasattr(cache, 'key_prefix')
+            and getattr(settings, 'CACHE_KEY_PREFIX', None)):
         key = '{}:{}'.format(settings.KEY_PREFIX, key)
 
     try:
