@@ -4,7 +4,7 @@ import os
 
 setup(
     name='django-cachecow',
-    version='0.2.6',
+    version='0.2.7',
     description='Cache decorators with namespaced invalidation, for Django.',
     #long_description=open('README').read(),
 
