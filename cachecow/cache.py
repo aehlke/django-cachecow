@@ -7,7 +7,7 @@ import time
 
 import django
 from django.conf import settings
-from django.core.cache import cache
+from django.core import cache
 
 from cachecow.intpacker import pack_int
 
@@ -122,7 +122,7 @@ def make_key(obj, namespace=None, skip_prefix=False):
         key = '{}:{}'.format(settings.CACHE_KEY_PREFIX, key)
 
     try:
-        django_key = cache.make_key(key)
+        django_key = cache.cache.make_key(key)
     except AttributeError:
         django_key = key
 
@@ -131,7 +131,7 @@ def make_key(obj, namespace=None, skip_prefix=False):
     if len(key) > MAX_KEY_LENGTH:
         try:
             # Django 1.3+ prepends some stuff to keys.
-            prefix = cache.make_key('')
+            prefix = cache.cache.make_key('')
         except AttributeError:
             prefix = ''
         
@@ -167,14 +167,16 @@ def _get_namespace_prefix(namespace):
     Gets (or sets if uninitialized) the key prefix for the given namespace 
     string. The return value will prepend any keys that belong to the namespace.
     '''
+    #TODO Use a special namespace prefix for namespace keys.
     namespace = make_key(namespace, skip_prefix=True)
-    ns_key = cache.get(namespace)
-    if not ns_key:
-        ns_key = _make_namespace_prefix()
-        cache.set(namespace, ns_key)
+    ns_prefix = cache.cache.get(namespace)
+    if not ns_prefix:
+        logger.debug("couldn't find namespace: {}".format(namespace))
+        ns_prefix = _make_namespace_prefix()
+        cache.cache.set(namespace, ns_prefix)
 
     # Compact the key before returning it to save space when using it.
-    return pack_int(ns_key)
+    return pack_int(ns_prefix)
 
 
 def invalidate_namespace(namespace):
@@ -191,7 +193,7 @@ def invalidate_namespace(namespace):
     logger.debug('invalidating namespace: {0}'.format(namespace))
 
     try:
-        cache.incr(namespace)
+        cache.cache.incr(namespace)
     except ValueError:
         # The namespace is already invalid, since its key is gone.
         pass
@@ -228,5 +230,5 @@ def set_cache(key, val, timeout=None, namespace=None, **kwargs):
     logger.debug(u'setting cache: {} = {} ({}, timeout={})'.format(
         key, val, val.__class__, timeout))
 
-    cache.set(key, val, timeout=timeout, **kwargs)
+    cache.cache.set(key, val, timeout=timeout, **kwargs)
 

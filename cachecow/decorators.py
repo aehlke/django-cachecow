@@ -5,7 +5,7 @@ import logging
 
 from django.conf import settings
 from django.contrib import messages
-from django.core.cache import cache
+from django.core import cache
 from django.http import HttpRequest, HttpResponse
 from django.utils import translation
 
@@ -52,7 +52,7 @@ def _add_delete_cache_member(func, key=None, namespace=None, add_user_to_key=Fal
 
         _key = _make_key_for_func(key_args, args, kwargs, namespace=namespace)
         logger.debug(u'deleting cache for key: {}'.format(_key))
-        cache.delete(_key)
+        cache.cache.delete(_key)
 
     func.delete_cache = delete_cache
 
@@ -155,7 +155,7 @@ def cached_function(timeout=None, key=None, namespace=None):
             _key = _make_key_for_func(key_args, args, kwargs,
                                       namespace=namespace)
 
-            val = cache.get(_key)
+            val = cache.cache.get(_key)
             logger.debug(u'getting cache from {}: {}'.format(_key, val))
             if val is None:
                 val = func(*args, **kwargs)
@@ -239,7 +239,7 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
                                       namespace=namespace)
 
             resp = None
-            val = cache.get(_key)
+            val = cache.cache.get(_key)
             logger.debug(u'getting cache from {}: {}'.format(_key, val))
 
             if val is None:
