@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import logging
 import os
 import sys
 
@@ -16,6 +17,11 @@ if not settings.configured:
             'cachecow',
             'cachecow.tests',
         ]
+    )
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s',
     )
 
 from django.test.simple import run_tests
