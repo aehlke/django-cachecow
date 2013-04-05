@@ -111,7 +111,6 @@ def make_key(obj, namespace=None, skip_prefix=False):
     key = '.'.join(imap(_format_key_arg, key_arg_iterator(obj)))
 
     if namespace is not None:
-        namespace = make_key(namespace, skip_prefix=True)
         key = '{}:{}'.format(_get_namespace_prefix(namespace), key)
 
     # Use cache.key_prefix if available (Django>=1.3),
@@ -168,10 +167,9 @@ def _get_namespace_prefix(namespace):
     string. The return value will prepend any keys that belong to the namespace.
     '''
     #TODO Use a special namespace prefix for namespace keys.
-    namespace = make_key(namespace, skip_prefix=True)
+    namespace = make_key(namespace)
     ns_prefix = cache.cache.get(namespace)
     if not ns_prefix:
-        logger.debug("couldn't find namespace: {}".format(namespace))
         ns_prefix = _make_namespace_prefix()
         cache.cache.set(namespace, ns_prefix)
 
@@ -188,7 +186,7 @@ def invalidate_namespace(namespace):
 
     It is an O(1) operation, independent of the number of keys in a namespace.
     '''
-    namespace = make_key(namespace, skip_prefix=True)
+    namespace = make_key(namespace)
 
     logger.debug('invalidating namespace: {0}'.format(namespace))
 

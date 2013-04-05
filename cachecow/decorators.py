@@ -16,7 +16,8 @@ from cachecow.intpacker import pack_int
 logger = logging.getLogger(__name__)
 
 
-def _make_key_for_func(key_args, func_args, func_kwargs, namespace=None):
+def _make_key_for_func(key_args, func_args, func_kwargs, namespace=None,
+                       skip_prefix=False):
     '''
     Returns the cache key to use for the decorated function. Calls and replaces
     any callable items in `key_args` with their return values before sending 
@@ -27,12 +28,10 @@ def _make_key_for_func(key_args, func_args, func_kwargs, namespace=None):
             return obj(*func_args, **func_kwargs)
         return obj
 
-    if namespace is not None:
-        namespace = call_if_callable(namespace)
-
+    key_args = call_if_callable(key_args)
     key_args = map(call_if_callable, key_arg_iterator(key_args))
 
-    return make_key(key_args, namespace=namespace)
+    return make_key(key_args, namespace=namespace, skip_prefix=skip_prefix)
 
 
 def _add_delete_cache_member(func, key=None, namespace=None, add_user_to_key=False):
@@ -48,9 +47,16 @@ def _add_delete_cache_member(func, key=None, namespace=None, add_user_to_key=Fal
 
         if add_user_to_key and kwargs.get('user') is not None:
             # We can assume that key is specified (see cached_view's docstring).
-            key_args = chain(key_arg_iterator(key_args, max_depth=0), [kwargs['user']])
+            key_args = chain(key_arg_iterator(key_args, max_depth=0),
+                             [kwargs['user']])
 
-        _key = _make_key_for_func(key_args, args, kwargs, namespace=namespace)
+        _namespace = None
+        if namespace is not None:
+            _namespace = _make_key_for_func(namespace, args, kwargs,
+                                            skip_prefix=True)
+
+        _key = _make_key_for_func(key_args, args, kwargs, namespace=_namespace)
+
         logger.debug(u'deleting cache for key: {}'.format(_key))
         cache.cache.delete(_key)
 
@@ -150,13 +156,19 @@ def cached_function(timeout=None, key=None, namespace=None):
 
         @wraps(func)
         def wrapped(*args, **kwargs):
-            key_args = (key
-                        or _make_key_args_from_function(func, *args, **kwargs))
+            key_args = key
+            if key is None:
+                key_args = _make_key_args_from_function(func, *args, **kwargs)
+
+            _namespace = None
+            if namespace is not None:
+                _namespace = _make_key_for_func(namespace, args, kwargs,
+                                                skip_prefix=True)
+
             _key = _make_key_for_func(key_args, args, kwargs,
-                                      namespace=namespace)
+                                      namespace=_namespace)
 
             val = cache.cache.get(_key)
-            logger.debug(u'getting cache from {}: {}'.format(_key, val))
             if val is None:
                 val = func(*args, **kwargs)
                 set_cache(_key, val, timeout)
@@ -231,12 +243,19 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
                 key_args.append(getattr(settings, 'SITE_ID', None))
 
             if add_user_to_key and request.user.is_authenticated():
-                key_args = chain(key_arg_iterator(key_args, max_depth=0), [request.user.id])
+                key_args = chain(key_arg_iterator(key_args, max_depth=0),
+                                 [request.user.id])
 
             # Serialize the key.
             # Add `request` to `args` since _make_key wants all func args in it.
-            _key = _make_key_for_func(key_args, (request,) + args, kwargs,
-                                      namespace=namespace)
+            _args = (request,) + args
+
+            _namespace = None
+            if namespace is not None:
+                _namespace = _make_key_for_func(namespace, _args, kwargs,
+                                                skip_prefix=True)
+
+            _key = _make_key_for_func(key_args, _args, kwargs, namespace=_namespace)
 
             resp = None
             val = cache.cache.get(_key)
