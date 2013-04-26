@@ -177,7 +177,7 @@ def cached_function(timeout=None, key=None, namespace=None):
     return decorator
 
 
-def _can_cache_request(request):
+def _can_cache_request(request, *args, **kwargs):
     '''
     Only caches if the request is for GET or HEAD, and if the Django messages
     app has no messages available for the user.
@@ -222,7 +222,7 @@ def cached_view(timeout=None, key=None, namespace=None, add_user_to_key=False,
 
         @wraps(func)
         def wrapped(request, *args, **kwargs):
-            if not request_gatekeeper(request):
+            if not request_gatekeeper(request, *args, **kwargs):
                 return func(request, *args, **kwargs)
 
             key_args = key
