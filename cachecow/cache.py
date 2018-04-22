@@ -1,5 +1,5 @@
 import hashlib
-from itertools import chain, imap
+from itertools import chain
 import logging
 import re
 import string
@@ -25,13 +25,14 @@ MAX_KEY_LENGTH = 250
 # http://code.sixapart.com/svn/memcached/trunk/server/doc/protocol.txt
 # http://www.unicode.org/charts/PDF/U0000.pdf
 # http://www.unicode.org/charts/PDF/U0080.pdf
-_CONTROL_CODE_CHARS = ''.join(chr(i) for i in chain(xrange(0x20 + 1),
+_CONTROL_CODE_CHARS = ''.join(chr(i) for i in chain(range(0x20 + 1),
                                                     [0x7f],
-                                                    xrange(0x80, 0x9f + 1)))
+                                                    range(0x80, 0x9f + 1)))
 
-# String containing all ASCII characters, used for string#translate which
-# is an efficient way of deleting characters from a string.
-_ALL_CHARS = string.maketrans('', '')
+# String containing all non-control code ASCII characters, used for
+# string#translate which is an efficient way of deleting characters from a
+# string.
+_ALL_CHARS_EXCEPT_CONTROL_CODES = str.maketrans('', '', _CONTROL_CODE_CHARS)
 
 
 def key_arg_iterator(key_args, max_depth=1):
@@ -44,7 +45,7 @@ def key_arg_iterator(key_args, max_depth=1):
     deep, if they contain nested iterables.
     '''
     # Try traversing deeper into the input, unless it's a string.
-    if max_depth >= 0 and not isinstance(key_args, basestring):
+    if max_depth >= 0 and not isinstance(key_args, str):
         try:
             for x in key_args:
                 for y in key_arg_iterator(x, max_depth=max_depth - 1):
@@ -61,45 +62,45 @@ def _format_key_arg(arg):
     Selectively formats args passed to `make_key`. Defaults to serializing
     into a Unicode string and then encoding in UTF-8.
     '''
-    to_string = lambda x: unicode(x).encode('utf8')
+    to_string = lambda x: str(x)
 
     if arg is None:
         return ''
     elif isinstance(arg, dict):
         # `str` is wasteful for dicts for our purposes here, so let's compact.
         s = ','.join([to_string(key) + ':' + to_string(val)
-                      for key,val in arg.items()])
+                      for (key, val) in arg.items()])
     else:
         s = to_string(arg)
 
     # Strip control characters and spaces (which memcached won't allow).
-    return s.translate(_ALL_CHARS, _CONTROL_CODE_CHARS)
+    return s.translate(_ALL_CHARS_EXCEPT_CONTROL_CODES)
 
 
 def make_key(obj, namespace=None, skip_prefix=False):
     '''
     Returns a string serialization of `obj` which is usable as a cache key.
 
-    This function is used internally by CacheCow, but it's exposed in case you 
+    This function is used internally by CacheCow, but it's exposed in case you
     want to use it directly with the lower-level Django cache API without the
     rest of CacheCow, and so that you can see how keys are constructed.
 
     This does a couple things to turn the given object into a clean key:
 
-        1. Recursively traverses, serializes and joins together any iterables, 
-           so you can pass a list of items to be turned into a key. The 
+        1. Recursively traverses, serializes and joins together any iterables,
+           so you can pass a list of items to be turned into a key. The
            recursion depth is limited to 1 level.
-       
-           String objects are an exception to this -- they are treated here as 
+
+           String objects are an exception to this -- they are treated here as
            atomic units, despite being iterables.
 
         2. Removes any control code characters and spaces [1] (which are
            illegal in memcached keys [2].)
 
         3. After the above two steps, if the resulting length is >
-           MAX_KEY_LENGTH bytes (250 by default, which is the memcached 
+           MAX_KEY_LENGTH bytes (250 by default, which is the memcached
            protocol limit), it generates a hash out of the key instead.
-    
+
     It's possible the resulting key would serialize into an empty string, so
     choose your args carefully to avoid this.
 
@@ -108,7 +109,7 @@ def make_key(obj, namespace=None, skip_prefix=False):
 
     [2] http://code.sixapart.com/svn/memcached/trunk/server/doc/protocol.txt
     '''
-    key = '.'.join(imap(_format_key_arg, key_arg_iterator(obj)))
+    key = '.'.join(map(_format_key_arg, key_arg_iterator(obj)))
 
     if namespace is not None:
         key = '{}:{}'.format(_get_namespace_prefix(namespace), key)
@@ -133,7 +134,7 @@ def make_key(obj, namespace=None, skip_prefix=False):
             prefix = cache.cache.make_key('')
         except AttributeError:
             prefix = ''
-        
+
         # Just to be safe... we should be able to have a key >= 1 char long :)
         if len(prefix) >= MAX_KEY_LENGTH:
             raise Exception('Your cache key prefixes are too long.')
